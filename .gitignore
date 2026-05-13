@@ -1,0 +1,11 @@
+venv/
+.venv/
+
+chrome_profile/
+
+__pycache__/
+*.pyc
+
+secret.key
+
+credentials.json
