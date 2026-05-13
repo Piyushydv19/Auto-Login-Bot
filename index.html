@@ -1,0 +1,781 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AutoLogin Bot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Space+Grotesk:wght@300;500;700&display=swap" rel="stylesheet" />
+<style>
+/* ── TOKENS ──────────────────────────────────────── */
+:root {
+  --bg:       #0a0a0c;
+  --surface:  #111114;
+  --card:     #18181d;
+  --border:   #2a2a33;
+  --accent:   #5b8cff;
+  --accent2:  #7f5bff;
+  --danger:   #ff4f4f;
+  --success:  #3ddc84;
+  --warn:     #ffc04a;
+  --text:     #e8e8f0;
+  --muted:    #6b6b80;
+  --mono:     'IBM Plex Mono', monospace;
+  --sans:     'Space Grotesk', sans-serif;
+}
+
+/* ── RESET ───────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── GRID NOISE BACKGROUND ───────────────────────── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: 0.15;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── HEADER ──────────────────────────────────────── */
+header {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(10,10,12,0.88);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  height: 64px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.logo {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  display: flex; align-items: center; gap: 10px;
+}
+.logo::before {
+  content: '◈';
+  font-size: 18px;
+  animation: pulse 2.4s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+.header-actions { display: flex; gap: 10px; align-items: center; }
+.badge-live {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .12em;
+  color: var(--success);
+  background: rgba(61,220,132,.1);
+  border: 1px solid rgba(61,220,132,.3);
+  padding: 3px 8px;
+  border-radius: 3px;
+}
+
+/* ── LAYOUT ──────────────────────────────────────── */
+main {
+  position: relative; z-index: 1;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+/* ── PAGE TITLE ──────────────────────────────────── */
+.page-title {
+  font-size: 13px;
+  font-family: var(--mono);
+  color: var(--muted);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.page-heading {
+  font-size: clamp(26px, 4vw, 38px);
+  font-weight: 700;
+  line-height: 1.15;
+  margin-bottom: 36px;
+}
+.page-heading span {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ── TOOLBAR ─────────────────────────────────────── */
+.toolbar {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+}
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  padding: 9px 18px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all .18s ease;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.btn-primary:hover { background: #4070ee; transform: translateY(-1px); }
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+  border-color: var(--border);
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+.btn-danger {
+  background: transparent;
+  color: var(--danger);
+  border-color: rgba(255,79,79,.3);
+  font-size: 11px;
+  padding: 5px 10px;
+}
+.btn-danger:hover { background: rgba(255,79,79,.1); }
+.btn-sm {
+  font-size: 11px;
+  padding: 6px 12px;
+}
+
+/* ── ADD SITE MODAL ──────────────────────────────── */
+.overlay {
+  display: none; position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,.7);
+  backdrop-filter: blur(6px);
+  align-items: center; justify-content: center;
+}
+.overlay.active { display: flex; }
+.modal {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 36px;
+  width: 100%; max-width: 460px;
+  position: relative;
+  animation: slideUp .22s ease;
+}
+@keyframes slideUp {
+  from { opacity:0; transform:translateY(20px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.modal-title {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: .1em;
+  color: var(--accent);
+  margin-bottom: 24px;
+  text-transform: uppercase;
+}
+.field { margin-bottom: 18px; }
+.field label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  margin-bottom: 7px;
+}
+.field input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 10px 14px;
+  transition: border-color .15s;
+  outline: none;
+}
+.field input:focus { border-color: var(--accent); }
+.modal-actions { display: flex; gap: 10px; margin-top: 26px; justify-content: flex-end; }
+.modal-close {
+  position: absolute; top: 16px; right: 18px;
+  background: none; border: none;
+  color: var(--muted); cursor: pointer;
+  font-size: 18px; line-height: 1;
+}
+.modal-close:hover { color: var(--text); }
+
+/* ── SITE GROUPS ─────────────────────────────────── */
+.sites-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.site-group {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color .2s;
+}
+.site-group:hover { border-color: #3a3a48; }
+
+.site-group-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.site-name-row { display: flex; align-items: center; gap: 12px; }
+.site-favicon {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  background: var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.site-favicon img { width: 100%; height: 100%; object-fit: cover; }
+.site-title {
+  font-weight: 700;
+  font-size: 15px;
+}
+.site-url {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.site-header-actions { display: flex; gap: 8px; align-items: center; }
+.profile-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  padding: 3px 8px;
+  background: rgba(255,255,255,.04);
+  border-radius: 4px;
+}
+
+/* ── PROFILE ROWS ────────────────────────────────── */
+.profiles-list { padding: 0; }
+.profile-row {
+  display: flex; align-items: center;
+  padding: 14px 22px;
+  border-bottom: 1px solid rgba(255,255,255,.04);
+  gap: 14px;
+  transition: background .15s;
+}
+.profile-row:last-child { border-bottom: none; }
+.profile-row:hover { background: rgba(255,255,255,.025); }
+
+.profile-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  color: var(--accent2);
+  background: rgba(127,91,255,.12);
+  border: 1px solid rgba(127,91,255,.25);
+  padding: 3px 9px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.profile-user {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-actions { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+
+/* ── STATUS PILL ─────────────────────────────────── */
+.status-pill {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  padding: 3px 9px;
+  border-radius: 4px;
+  border: 1px solid;
+  white-space: nowrap;
+  min-width: 72px;
+  text-align: center;
+}
+.status-pill.idle      { color: var(--muted); border-color: var(--border); background: transparent; }
+.status-pill.running   { color: var(--warn);  border-color: rgba(255,192,74,.3); background: rgba(255,192,74,.07); animation: blink 1s ease-in-out infinite; }
+.status-pill.success   { color: var(--success); border-color: rgba(61,220,132,.3); background: rgba(61,220,132,.07); }
+.status-pill.failed    { color: var(--danger); border-color: rgba(255,79,79,.3); background: rgba(255,79,79,.07); }
+.status-pill.otp       { color: #f9a825; border-color: rgba(249,168,37,.3); background: rgba(249,168,37,.07); animation: blink 1s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+/* ── LOGIN BTN ───────────────────────────────────── */
+.btn-login {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  padding: 5px 12px;
+  border-radius: 5px;
+  border: 1px solid var(--accent);
+  background: rgba(91,140,255,.1);
+  color: var(--accent);
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.btn-login:hover { background: var(--accent); color: #fff; }
+.btn-login:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ── LOGIN ALL BTN ───────────────────────────────── */
+.btn-login-all {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  padding: 5px 12px;
+  border-radius: 5px;
+  border: 1px solid rgba(61,220,132,.4);
+  background: rgba(61,220,132,.08);
+  color: var(--success);
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.btn-login-all:hover { background: var(--success); color: #000; }
+
+/* ── EMPTY STATE ─────────────────────────────────── */
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--muted);
+}
+.empty-state h3 {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.empty-state p {
+  font-family: var(--mono);
+  font-size: 12px;
+  margin-bottom: 24px;
+}
+
+/* ── TOAST ───────────────────────────────────────── */
+.toast-container {
+  position: fixed; bottom: 24px; right: 24px;
+  display: flex; flex-direction: column; gap: 10px;
+  z-index: 999;
+}
+.toast {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 12px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  max-width: 320px;
+  animation: toastIn .2s ease;
+  box-shadow: 0 8px 32px rgba(0,0,0,.4);
+}
+@keyframes toastIn { from{opacity:0;transform:translateX(24px)} to{opacity:1;transform:translateX(0)} }
+.toast.success { border-color: rgba(61,220,132,.4); color: var(--success); }
+.toast.error   { border-color: rgba(255,79,79,.4); color: var(--danger); }
+
+/* ── SCROLLBAR ───────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── RESPONSIVE ──────────────────────────────────── */
+@media(max-width: 600px) {
+  header { padding: 0 16px; }
+  main { padding: 24px 12px 60px; }
+  .profile-row { flex-wrap: wrap; }
+}
+
+/* ── ADD PROFILE ROW ─────────────────────────────── */
+.add-profile-row {
+  cursor: pointer;
+  opacity: 0.55;
+  border-top: 1px dashed var(--border) !important;
+  transition: opacity .15s, background .15s;
+}
+.add-profile-row:hover { opacity: 1; background: rgba(91,140,255,.06) !important; }
+.add-profile-icon {
+  font-size: 14px;
+  color: var(--accent);
+  margin-right: 2px;
+}
+.add-profile-label {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--accent);
+  letter-spacing: .06em;
+}
+
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">AutoLogin Bot</div>
+  <div class="header-actions">
+    <span class="badge-live" id="liveBadge">● LIVE</span>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main>
+  <p class="page-title">// Session Manager</p>
+  <h1 class="page-heading">AutoLogin <span>Bot</span></h1>
+
+  <div class="toolbar">
+    <button class="btn btn-primary" onclick="openModal()">＋ Add Account</button>
+    <button class="btn btn-ghost" onclick="refreshSites()">↻ Refresh</button>
+  </div>
+
+  <div class="sites-grid" id="sitesGrid">
+    <div class="empty-state">
+      <h3>No accounts configured</h3>
+      <p>Add your first account to begin</p>
+      <button class="btn btn-primary" onclick="openModal()">＋ Add Account</button>
+    </div>
+  </div>
+</main>
+
+<!-- ADD ACCOUNT MODAL -->
+<div class="overlay" id="overlay" onclick="handleOverlayClick(event)">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-title">// Add Account</div>
+
+    <div class="field">
+      <label>Site Name</label>
+      <input id="fName" type="text" placeholder="e.g. GitHub" autocomplete="off" />
+    </div>
+    <div class="field">
+      <label>Login URL</label>
+      <input id="fUrl" type="url" placeholder="https://github.com/login" autocomplete="off" />
+    </div>
+    <div class="field">
+      <label>Username / Email</label>
+      <input id="fUsername" type="text" placeholder="user@example.com" autocomplete="off" />
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input id="fPassword" type="password" placeholder="••••••••••" autocomplete="new-password" />
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitAccount()">Save Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+const API = '';  // same origin
+
+// ── STATE ──────────────────────────────────────────
+let sites = [];
+let statuses = {};
+let pollInterval = null;
+
+// ── INIT ───────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  refreshSites();
+  startPolling();
+});
+
+// ── DATA ───────────────────────────────────────────
+async function refreshSites() {
+  try {
+    const res = await fetch(`${API}/api/sites`);
+    sites = await res.json();
+    renderSites();
+  } catch(e) {
+    toast('Failed to load sites', 'error');
+  }
+}
+
+async function fetchStatus() {
+  try {
+    const res = await fetch(`${API}/api/status`);
+    statuses = await res.json();
+    updateStatusPills();
+  } catch(e) {}
+}
+
+function startPolling() {
+  pollInterval = setInterval(fetchStatus, 2500);
+}
+
+// ── RENDER ─────────────────────────────────────────
+function getFavicon(url) {
+  try {
+    const u = new URL(url);
+    return `https://www.google.com/s2/favicons?domain=${u.hostname}&sz=32`;
+  } catch { return null; }
+}
+
+function statusClass(s) {
+  if (!s || s === 'Idle') return 'idle';
+  if (s === 'Running') return 'running';
+  if (s === 'Success') return 'success';
+  if (s === 'Waiting OTP') return 'otp';
+  if (s.startsWith('Failed')) return 'failed';
+  return 'idle';
+}
+
+function statusLabel(s) {
+  if (!s || s === 'Idle') return '— IDLE';
+  if (s === 'Running') return '⟳ RUNNING';
+  if (s === 'Success') return '✓ SUCCESS';
+  if (s === 'Waiting OTP') return '⚡ OTP';
+  if (s.startsWith('Failed')) return '✕ FAILED';
+  return s;
+}
+
+function profileKey(siteId, profileName) {
+  return `${siteId}:${profileName}`;
+}
+
+function renderSites() {
+  const grid = document.getElementById('sitesGrid');
+
+  if (!sites.length) {
+    grid.innerHTML = `
+      <div class="empty-state">
+        <h3>No accounts configured</h3>
+        <p>Add your first account to begin</p>
+        <button class="btn btn-primary" onclick="openModal()">＋ Add Account</button>
+      </div>`;
+    return;
+  }
+
+  grid.innerHTML = sites.map(site => {
+    const favicon = getFavicon(site.url);
+    const faviconHtml = favicon
+      ? `<img src="${favicon}" onerror="this.style.display='none'" />`
+      : site.name.charAt(0).toUpperCase();
+
+    // Only show profiles that have both username AND password filled
+    const filledProfiles = (site.profiles || []).filter(p => p.username && p.password);
+
+    const profilesHtml = filledProfiles.map(p => {
+      const key = profileKey(site.id, p.profile_name);
+      const st = statuses[key] || 'Idle';
+      const sc = statusClass(st);
+      const sl = statusLabel(st);
+      const isRunning = st === 'Running';
+      return `
+        <div class="profile-row" id="row-${cssId(key)}">
+          <span class="profile-badge">${escHtml(p.profile_name)}</span>
+          <span class="profile-user">${escHtml(p.username)}</span>
+          <div class="profile-actions">
+            <span class="status-pill ${sc}" id="pill-${cssId(key)}">${sl}</span>
+            <button class="btn-login" ${isRunning ? 'disabled' : ''}
+              onclick="loginProfile('${escAttr(site.id)}', '${escAttr(p.profile_name)}', this)">
+              LOGIN
+            </button>
+            <button class="btn-danger btn"
+              onclick="deleteProfile('${escAttr(site.id)}', '${escAttr(p.profile_name)}')">
+              ✕
+            </button>
+          </div>
+        </div>`;
+    }).join('');
+
+    // Always show an "+ Add Profile" row at the bottom of each site group
+    const addProfileRow = `
+      <div class="profile-row add-profile-row" onclick="openModalForSite('${escAttr(site.name)}', '${escAttr(site.url)}')">
+        <span class="add-profile-icon">＋</span>
+        <span class="add-profile-label">Add Profile</span>
+      </div>`;
+
+    return `
+      <div class="site-group" id="group-${cssId(site.id)}">
+        <div class="site-group-header">
+          <div class="site-name-row">
+            <div class="site-favicon">${faviconHtml}</div>
+            <div>
+              <div class="site-title">${escHtml(site.name)}</div>
+              <div class="site-url">${escHtml(site.url)}</div>
+            </div>
+          </div>
+          <div class="site-header-actions">
+            <span class="profile-count">${filledProfiles.length} profile${filledProfiles.length !== 1 ? 's' : ''}</span>
+            <button class="btn-login-all"
+              onclick="loginAll('${escAttr(site.id)}')">
+              LOGIN ALL
+            </button>
+            <button class="btn-danger btn"
+              onclick="deleteSite('${escAttr(site.id)}')">
+              DELETE
+            </button>
+          </div>
+        </div>
+        <div class="profiles-list">${profilesHtml}${addProfileRow}</div>
+      </div>`;
+  }).join('');
+}
+
+function updateStatusPills() {
+  Object.entries(statuses).forEach(([key, st]) => {
+    const pill = document.getElementById(`pill-${cssId(key)}`);
+    if (pill) {
+      pill.className = `status-pill ${statusClass(st)}`;
+      pill.textContent = statusLabel(st);
+    }
+  });
+}
+
+// ── ACTIONS ────────────────────────────────────────
+async function loginProfile(siteId, profileName, btn) {
+  btn.disabled = true;
+  const key = profileKey(siteId, profileName);
+  const pill = document.getElementById(`pill-${cssId(key)}`);
+  if (pill) { pill.className = 'status-pill running'; pill.textContent = '⟳ RUNNING'; }
+
+  try {
+    const res = await fetch(`${API}/api/login/${encodeURIComponent(siteId)}/${encodeURIComponent(profileName)}`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) toast(`Started: ${profileName}`, 'success');
+    else { toast(data.error || 'Failed', 'error'); btn.disabled = false; }
+  } catch {
+    toast('Network error', 'error');
+    btn.disabled = false;
+  }
+}
+
+async function loginAll(siteId) {
+  try {
+    const res = await fetch(`${API}/api/login/${encodeURIComponent(siteId)}`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) toast(data.message, 'success');
+    else toast(data.error || 'Failed', 'error');
+  } catch { toast('Network error', 'error'); }
+}
+
+async function deleteProfile(siteId, profileName) {
+  if (!confirm(`Delete ${profileName} from this site?`)) return;
+  try {
+    await fetch(`${API}/api/sites/${encodeURIComponent(siteId)}/profiles/${encodeURIComponent(profileName)}`, { method: 'DELETE' });
+    await refreshSites();
+    toast('Profile deleted', 'success');
+  } catch { toast('Delete failed', 'error'); }
+}
+
+async function deleteSite(siteId) {
+  if (!confirm('Delete this entire site and all profiles?')) return;
+  try {
+    await fetch(`${API}/api/sites/${encodeURIComponent(siteId)}`, { method: 'DELETE' });
+    await refreshSites();
+    toast('Site deleted', 'success');
+  } catch { toast('Delete failed', 'error'); }
+}
+
+// ── MODAL ──────────────────────────────────────────
+function openModal() {
+  document.getElementById('overlay').classList.add('active');
+  document.getElementById('fName').focus();
+}
+function closeModal() {
+  document.getElementById('overlay').classList.remove('active');
+  ['fName','fUrl','fUsername','fPassword'].forEach(id => document.getElementById(id).value = '');
+}
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('overlay')) closeModal();
+}
+
+async function submitAccount() {
+  const name     = document.getElementById('fName').value.trim();
+  const url      = document.getElementById('fUrl').value.trim();
+  const username = document.getElementById('fUsername').value.trim();
+  const password = document.getElementById('fPassword').value;
+
+  if (!name || !url || !username || !password) {
+    toast('All fields required', 'error'); return;
+  }
+
+  try {
+    const res = await fetch(`${API}/api/sites`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, url, username, password })
+    });
+    const data = await res.json();
+    if (data.success) {
+      toast(`Account added to ${name}`, 'success');
+      closeModal();
+      await refreshSites();
+    } else {
+      toast(data.error || 'Failed', 'error');
+    }
+  } catch { toast('Network error', 'error'); }
+}
+
+// ── UTILS ──────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) { return String(s).replace(/'/g,"\\'"); }
+function cssId(s)   { return s.replace(/[^a-zA-Z0-9_-]/g,'_'); }
+
+// ── TOAST ──────────────────────────────────────────
+function toast(msg, type='') {
+  const c = document.getElementById('toastContainer');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  c.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+
+// ── OPEN MODAL PRE-FILLED FOR EXISTING SITE ────────
+function openModalForSite(name, url) {
+  document.getElementById('fName').value = name;
+  document.getElementById('fUrl').value = url;
+  openModal();
+  setTimeout(() => document.getElementById('fUsername').focus(), 50);
+}
+
+// keyboard close
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// submit on Enter in modal
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('overlay').classList.contains('active')) {
+    submitAccount();
+  }
+});
+</script>
+</body>
+</html>
